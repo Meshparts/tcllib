@@ -220,6 +220,10 @@ proc ::tar::get {tar file args} {
 	"Tar \"$tar\": File \"$file\" not found"
 }
 
+proc ::tar::isabsolute {path} {
+    return [expr {[string match -nocase [file pathtype $importfile] "absolute"]}]
+}
+
 proc ::tar::untar {tar args} {
     set nooverwrite 0
     set data 0
@@ -244,16 +248,22 @@ proc ::tar::untar {tar args} {
     }
     while {![eof $fh]} {
         array set header [readHeader [read $fh 512]]
-	HandleLongLink $fh header
+	    HandleLongLink $fh header
         if {$header(name) == ""} break
-	if {$header(prefix) != ""} {append header(prefix) /}
+	    if {$header(prefix) != ""} {append header(prefix) /}
         set name [string trimleft $header(prefix)$header(name) /]
         if {![string match $pattern $name] || ($nooverwrite && [file exists $name])} {
             seekorskip $fh [expr {$header(size) + [pad $header(size)]}] current
             continue
         }
 
-        set name [file join $dir $name]
+        if {$dir!=""} {
+            if {[::tar::isabsolute $name]} {
+                set name [file join $dir [file tail $name]]
+            } else {
+                set name [file join $dir $name]
+            }
+        }
         if {![file isdirectory [file dirname $name]]} {
             file mkdir [file dirname $name]
             lappend ret [file dirname $name] {}
